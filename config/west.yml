@@ -4,10 +4,12 @@ manifest:
       url-base: https://github.com/zmkfirmware
     - name: ZitaoTech
       url-base: https://github.com/ZitaoTech
+    - name: thoughtfix
+      url-base: https://github.com/thoughtfix
   projects:
     - name: zmk
-      remote: ZitaoTech
-      revision: bbkeyboard_tp
+      remote: thoughtfix
+      revision: bbkeyboard_tp-fix9900
       import: app/west.yml
   self:
     path: config

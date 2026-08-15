@@ -11,6 +11,7 @@
 #include <dt-bindings/zmk/mouse.h>
 #include <dt-bindings/zmk/backlight.h>
 #include <dt-bindings/zmk/ext_power.h>
+#include <dt-bindings/zmk/modifiers.h>
 
 #define SYM 1
 #define UPPER 2
@@ -36,6 +37,48 @@
         };
     };
 
+    // Bootloader-combo hardening (see NOTES.md, "flash mode" combo and the
+    // Enter key bugfix). Adds Left-Ctrl+Left-Alt+\ as a NEW, additional way
+    // into the bootloader, alongside the existing bare Fn+\ binding in
+    // sym_layer/upper_layer below (left untouched on purpose. TODO: check
+    // with the kb maker before ever removing it, other users may already
+    // rely on the documented Fn+\).
+    //
+    // Originally implemented as a ZMK `combos` block, which turned out to
+    // silently break the Enter key (confirmed via bisection across several
+    // builds: Enter worked with zero changes, broke the moment any combos
+    // block existed, regardless of which keys it referenced). Root cause
+    // not fully proven, but not worth re-attempting: this mod-morph
+    // approach sidesteps the combo subsystem entirely. Bound directly to
+    // the Backslash position instead: normal \ press behaves exactly as
+    // before, but pressing it while Ctrl+Alt are held sends &bootloader.
+    // Same gesture for the user, a much simpler mechanism under the hood:
+    // a per-position modifier check at press time, not global multi-key
+    // position tracking with timeouts.
+    behaviors {
+        bootloader_morph: bootloader_morph {
+            compatible = "zmk,behavior-mod-morph";
+            #binding-cells = <0>;
+            bindings = <&kp BACKSLASH>, <&bootloader>;
+            mods = <(MOD_LCTL|MOD_LALT)>;
+        };
+    };
+
+    // Volume/Mute fix (see NOTES.md): Speaker key alone = Volume Down,
+    // Shift+Speaker = Volume Up, matching ClusterM's factory-spec
+    // do_the_key() behavior. Both Fn layers separately rebound to Mute.
+    // A plain mod-morph can't do this correctly on its own: Consumer-page
+    // reports have no modifier byte, so Shift stays reported as held the
+    // whole time and breaks strict WM keybind matching. vol_shift is a
+    // custom behavior (zmk fork, src/behaviors/behavior_vol_shift.c) that
+    // explicitly releases and restores the Shift bit around the press.
+    behaviors {
+        vol_shift: vol_shift {
+            compatible = "zmk,behavior-vol-shift";
+            #binding-cells = <0>;
+        };
+    };
+
     keymap {
         compatible = "zmk,keymap";
 
@@ -51,9 +94,9 @@
 // |  LShift  |  Z  |  X  |  C  |  V  |  B  |  N  |  M  |  <  |  >  |  ;  |  RShift  |  
 //        |  Fn  |  LCtrl  |  Alt   |      SPACE      |   Alt   |  RCtrl   |  Fn   |  
 //        -----------------------------------------------------------------------------------------------------------------
-            &kp LEFT                      &mkp LCLK         &mkp LCLK      &kp F21   &kp F22 
+            &kp LEFT                      &mkp LCLK         &none      &kp F21   &kp F22
 &kp UP   &kp DOWN &kp RIGHT               &mkp RCLK                       &kp  F23      &kp F24
-&kp ESC    &kp CAPSLOCK  &kp C_PLAY &kp K_MUTE    &kp LBKT   &kp RBKT   &kp FSLH   &kp MINUS  &kp  EQUAL &kp BACKSLASH                                                                                  
+&kp ESC    &none  &kp C_PLAY &vol_shift    &kp LBKT   &kp RBKT   &kp FSLH   &kp MINUS  &kp  EQUAL &bootloader_morph
 &kp GRAVE  &kp N1        &kp N2     &kp N3   &kp N4     &kp N5     &kp N6     &kp N7     &kp N8    &kp N9  &kp N0 &kp BSPC
 &kp TAB     &kp Q         &kp W      &kp E    &kp R      &kp T      &kp Y      &kp U      &kp I     &kp O   &kp P
 &kp SQT     &kp A         &kp S      &kp D    &kp F      &kp G      &kp H      &kp J      &kp K     &kp L   &kp SEMICOLON &kp ENTER        
@@ -66,14 +109,14 @@
         sym_layer {
 
             bindings = <
-        &kp LEFT                      &mkp LCLK         &mkp RCLK      &kp Y   &kp X 
+        &kp LEFT                      &mkp LCLK         &none      &kp Y   &kp X
 &kp K_VOL_UP   &kp K_VOL_DN &kp RIGHT               &mkp RCLK                       &kp  B      &kp A
-&kp C_AL_SCREENSAVER  &kp C_AC_PRINT &mkp C_PAUSE  &kp K_VOL_UP &none   &none   &none   &kp F11    &kp F12   &bootloader                                                                                   
+&kp C_AL_SCREENSAVER  &kp C_AC_PRINT &kp C_PAUSE  &kp C_MUTE &none   &none   &none   &kp F11    &kp F12   &bootloader
 &none    &kp F1         &kp F2        &kp F3     &kp F4     &kp F5     &kp F6     &kp F7     &kp F8    &kp F9  &kp F10 &kp DEL
 &kp CAPSLOCK    &kp Q          &kp W         &kp E      &kp R      &kp T      &kp Y      &kp PAGE_UP      &kp INSERT     &kp O   &kp P
 &none    &kp A          &kp S         &kp D      &kp F      &kp G      &kp HOME      &kp END      &kp PAGE_DOWN     &kp L   &none &none         
 &none    &kp Z          &kp X         &kp C      &kp V      &kp B      &kp N      &kp M      &kp C_BRI_DN &kp C_BRI_UP &kp RSHFT
-  &none  &kp LCTRL               &kp LGUI             &bl BL_TOG           &mo SYM         &mo SYM     &mo UPPER           
+  &none  &kp LCTRL               &kp LGUI             &bl BL_TOG           &kp RALT         &kp RCTRL     &mo UPPER
 
             >;
         };
@@ -82,14 +125,14 @@
         upper_layer {
 
             bindings = <
-        &kp LEFT                      &mkp LCLK         &mkp RCLK      &kp Y   &kp X 
+        &kp LEFT                      &mkp LCLK         &none      &kp Y   &kp X
 &kp UP   &kp DOWN &kp RIGHT               &mkp RCLK                       &kp  B      &kp A
-&bt BT_CLR  &kp C_AC_PRINT &mkp C_PAUSE  &kp K_VOL_DN &none   &none   &none   &kp F11    &kp F12   &bootloader                                                                                   
+&bt BT_CLR  &kp C_AC_PRINT &kp C_PAUSE  &kp C_MUTE &none   &none   &none   &kp F11    &kp F12   &bootloader
 &none     &bt BT_SEL 0          &bt BT_SEL 1         &bt BT_SEL 2      &bt BT_SEL 3     &kp F5     &kp F6     &kp F7     &kp F8    &kp F9  &kp F10 &kp DEL
 &kp CAPSLOCK    &kp Q          &kp W         &kp E      &kp R      &kp T      &kp Y      &kp PAGE_UP      &kp INSERT     &kp O   &kp P
 &none    &kp A          &kp S         &kp D      &kp F      &kp G      &kp HOME      &kp END      &kp PAGE_DOWN     &kp L   &none &none         
 &none    &kp Z          &kp X         &kp C      &kp V      &kp B      &kp N      &kp M      &kp C_BRI_DN &kp C_BRI_UP &kp RSHFT
-  &sys_reset  &kp LCTRL               &kp LALT             &bl BL_TOG           &mo SYM         &none     &none           
+  &sys_reset  &kp LCTRL               &kp LALT             &bl BL_TOG           &kp RALT         &kp RCTRL     &none           
 
             >;
         };
